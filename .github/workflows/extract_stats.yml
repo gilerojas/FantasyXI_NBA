@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          token: ${{ secrets.PERSONAL_PAT }}
+          token: ${{ secrets.PERSONAL_PAT1 }}
       
       - uses: actions/setup-python@v4
         with:
@@ -61,7 +61,7 @@ jobs:
           FREEZE_DATE=$(jq -r '.date' data/processed/freeze_time.json)
           MONTH=${FREEZE_DATE:0:7}
           echo "Subiendo stats para $FREEZE_DATE..."
-          rclone copy data/processed/daily_stats/$MONTH/ mallitalytics:FantasyXI_NBA/daily_stats/$MONTH/ --include "*$FREEZE_DATE*.csv" --quiet
+          rclone copy data/processed/daily_stats/$MONTH/ mallitalytics:FantasyXI/daily_stats/$MONTH/ --include "*$FREEZE_DATE*.csv" --quiet
       
       - name: Commit stats
         run: |

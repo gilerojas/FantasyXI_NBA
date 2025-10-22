@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          token: ${{ secrets.PERSONAL_PAT }}
+          token: ${{ secrets.PERSONAL_PAT1 }}
       
       - uses: actions/setup-python@v4
         with:
@@ -89,7 +89,7 @@ jobs:
       - name: Upload Rosters to Google Drive
         if: steps.check_freeze.outputs.execute_now == 'true'
         run: |
-          rclone copy data/processed/daily_rosters_excels/ mallitalytics:FantasyXI_NBA/data/processed/daily_rosters_excels/ --quiet
+          rclone copy data/processed/daily_rosters_excels/ mallitalytics:FantasyXI/data/processed/daily_rosters_excels/ --quiet
       
       - name: Mark freeze_time as processed
         if: steps.check_freeze.outputs.execute_now == 'true'
