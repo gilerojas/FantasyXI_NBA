@@ -1,0 +1,25 @@
+# Core
+pandas
+numpy
+requests
+python-dotenv
+tqdm
+
+# ESPN / NBA
+espn-api
+nba_api
+thefuzz
+
+# Visualization
+matplotlib
+seaborn
+Pillow
+
+# Workflow
+rclone
+gspread
+oauth2client
+
+# Dev
+ipython
+jupyter

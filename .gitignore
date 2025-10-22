@@ -1,0 +1,67 @@
+# ==============================
+# PYTHON / ENVIRONMENT
+# ==============================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.env.*
+.venv/
+env*/
+venv*/
+.idea/
+.vscode/
+.DS_Store
+
+# ==============================
+# CREDENTIALS & CONFIGS
+# ==============================
+secrets*.json
+*.key
+*.pem
+*.p12
+rclone.conf
+*.log
+logs/
+config/
+*.token
+token_*.json
+
+# ==============================
+# DATA
+# ==============================
+data/raw/
+data/external/
+data/processed/freeze_time.json
+data/processed/daily_rosters_excels/
+data/processed/daily_stats/
+data/processed/free_agents/
+data/processed/records/
+data/processed/weekly_predictions_csv/
+data/processed/weekly_summaries/
+data/processed/weekly_team_stats/
+data/weekly_outputs/
+
+# ==============================
+# NOTEBOOKS / OUTPUTS
+# ==============================
+notebooks/.ipynb_checkpoints/
+notebooks/data/
+outputs/*.png
+outputs/*.jpg
+outputs/*.pdf
+outputs/draft_results/
+outputs/highlight_tables/
+outputs/weekly_predictions/
+outputs/weekly_table_images/
+outputs/weekly_barplots/
+outputs/weekly_performers/
+
+# ==============================
+# SYSTEM
+# ==============================
+Thumbs.db
+*.bak
+*.tmp
+*.swp
+*.swo

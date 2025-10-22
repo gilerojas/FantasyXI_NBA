@@ -1,0 +1,115 @@
+name: Poll and Freeze Rosters
+
+on:
+  schedule:
+    - cron: "0,30 15-23 * * *"  # Every 30 min from 11:00 AM to 7:30 PM RD (UTC-4)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  poll_and_freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PERSONAL_PAT }}
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+          pip install python-dateutil
+      
+      - name: Install project (editable)
+        run: |
+          source .venv/bin/activate
+          pip install -e .
+      
+      - name: Load .env secrets
+        run: |
+          echo "ESPN_LEAGUE_ID=${{ secrets.ESPN_LEAGUE_ID }}" >> .env
+          echo "ESPN_S2=${{ secrets.ESPN_S2 }}" >> .env
+          echo "ESPN_SWID=${{ secrets.ESPN_SWID }}" >> .env
+      
+      - name: Check freeze_time and processed status
+        id: check_freeze
+        run: |
+          source .venv/bin/activate
+          python - <<EOF
+          import json, sys
+          from datetime import datetime
+          from dateutil import parser, tz
+          
+          with open("data/processed/freeze_time.json", "r") as f:
+              data = json.load(f)
+          
+          # Si no hay freeze_time (día sin juegos), salir
+          if data.get("freeze_time") is None:
+              print("No hay juegos hoy, saltando freeze")
+              print("::set-output name=execute_now::false")
+              sys.exit(0)
+          
+          freeze_time = parser.isoparse(data["freeze_time"]).astimezone(tz.tzutc())
+          now = datetime.now(tz=tz.tzutc())
+          processed = data.get("processed", False)
+          
+          if processed:
+              print("Freeze ya procesado")
+              print("::set-output name=execute_now::false")
+              sys.exit(0)
+          
+          if now >= freeze_time:
+              print("Es hora de congelar rosters")
+              print("::set-output name=execute_now::true")
+          else:
+              print(f"Esperando freeze time: {freeze_time}")
+              print("::set-output name=execute_now::false")
+          EOF
+      
+      - name: Execute freeze_rosters.py (only if ready)
+        if: steps.check_freeze.outputs.execute_now == 'true'
+        run: |
+          source .venv/bin/activate
+          python src/fantasyxi/pipeline/freeze_rosters.py
+      
+      - name: Install and Configure rclone
+        if: steps.check_freeze.outputs.execute_now == 'true'
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG_BASE64 }}" | base64 --decode > ~/.config/rclone/rclone.conf
+      
+      - name: Upload Rosters to Google Drive
+        if: steps.check_freeze.outputs.execute_now == 'true'
+        run: |
+          rclone copy data/processed/daily_rosters_excels/ mallitalytics:FantasyXI_NBA/data/processed/daily_rosters_excels/ --quiet
+      
+      - name: Mark freeze_time as processed
+        if: steps.check_freeze.outputs.execute_now == 'true'
+        run: |
+          python - <<EOF
+          import json
+          with open("data/processed/freeze_time.json", "r+") as f:
+              data = json.load(f)
+              data["processed"] = True
+              f.seek(0)
+              json.dump(data, f, indent=2)
+              f.truncate()
+          EOF
+      
+      - name: Commit frozen roster and freeze_time
+        if: steps.check_freeze.outputs.execute_now == 'true'
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add data/processed/daily_rosters_excels/
+          git add data/processed/freeze_time.json
+          git commit -m "✅ Freeze ejecutado: roster y freeze_time actualizados"
+          git push origin main

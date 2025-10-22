@@ -1,0 +1,72 @@
+name: Extract Stats and Generate Highlights
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 6:00 AM RD (UTC-4)
+  workflow_dispatch:
+
+jobs:
+  extract_and_highlight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PERSONAL_PAT }}
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+      
+      - name: Install project (editable)
+        run: |
+          source .venv/bin/activate
+          pip install -e .
+      
+      - name: Load .env
+        run: |
+          echo "ESPN_LEAGUE_ID=${{ secrets.ESPN_LEAGUE_ID }}" >> .env
+          echo "ESPN_S2=${{ secrets.ESPN_S2 }}" >> .env
+          echo "ESPN_SWID=${{ secrets.ESPN_SWID }}" >> .env
+      
+      - name: Extract daily stats
+        run: |
+          source .venv/bin/activate
+          python src/fantasyxi/pipeline/extract_daily_stats.py
+      
+      - name: Generate highlights (opcional)
+        run: |
+          source .venv/bin/activate
+          # python src/fantasyxi/analysis/highlight_top_performers.py
+          echo "⚠️ Highlights script no implementado aún"
+      
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+      
+      - name: Decode rclone config
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG_BASE64 }}" | base64 --decode > ~/.config/rclone/rclone.conf
+      
+      - name: Upload stats to Google Drive
+        run: |
+          FREEZE_DATE=$(jq -r '.date' data/processed/freeze_time.json)
+          MONTH=${FREEZE_DATE:0:7}
+          echo "Subiendo stats para $FREEZE_DATE..."
+          rclone copy data/processed/daily_stats/$MONTH/ mallitalytics:FantasyXI_NBA/daily_stats/$MONTH/ --include "*$FREEZE_DATE*.csv" --quiet
+      
+      - name: Commit stats
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add data/processed/daily_stats/
+          git commit -m "📊 Stats extraídas para $(jq -r '.date' data/processed/freeze_time.json)" || echo "No changes to commit"
+          git push origin main
