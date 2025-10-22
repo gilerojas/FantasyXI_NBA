@@ -32,12 +32,6 @@ jobs:
           source .venv/bin/activate
           pip install -e .
       
-      - name: Load .env secrets
-        run: |
-          echo "ESPN_LEAGUE_ID=${{ secrets.ESPN_LEAGUE_ID }}" >> .env
-          echo "ESPN_S2=${{ secrets.ESPN_S2 }}" >> .env
-          echo "ESPN_SWID=${{ secrets.ESPN_SWID }}" >> .env
-      
       - name: Check freeze_time and processed status
         id: check_freeze
         run: |
@@ -75,6 +69,10 @@ jobs:
       
       - name: Execute freeze_rosters.py (only if ready)
         if: steps.check_freeze.outputs.execute_now == 'true'
+        env:
+          ESPN_LEAGUE_ID: ${{ secrets.ESPN_LEAGUE_ID }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
         run: |
           source .venv/bin/activate
           python src/fantasyxi/pipeline/freeze_rosters.py
