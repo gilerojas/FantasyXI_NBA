@@ -32,7 +32,7 @@ token_*.json
 # ==============================
 data/raw/
 data/external/
-data/processed/freeze_time.json
+!data/processed/freeze_time.json
 data/processed/daily_rosters_excels/
 data/processed/daily_stats/
 data/processed/free_agents/
