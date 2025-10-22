@@ -45,6 +45,7 @@ data/weekly_outputs/
 # ==============================
 # NOTEBOOKS / OUTPUTS
 # ==============================
+notebooks/
 notebooks/.ipynb_checkpoints/
 notebooks/data/
 outputs/*.png
