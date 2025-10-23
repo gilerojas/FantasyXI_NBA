@@ -1,38 +1,35 @@
 """
-Funciones para manejar el schedule de la NBA.
+Funciones para obtener el schedule de la NBA sin cache.
 """
 
-import json
-from pathlib import Path
-import pandas as pd
 from datetime import date
-
-CACHE_DIR = Path("data/processed/misc")
-SCHEDULE_CACHE = CACHE_DIR / "scheduleLeagueV2.json"
+from nba_api.stats.endpoints import scoreboardv2
 
 
-def build_schedule_df_from_cache() -> pd.DataFrame:
-    """Construye DataFrame del schedule desde el cache."""
-    if not SCHEDULE_CACHE.exists():
-        raise FileNotFoundError(f"Schedule cache no encontrado: {SCHEDULE_CACHE}")
+def get_game_ids_for_date(day: date) -> list:
+    """
+    Obtiene los game IDs para una fecha específica usando NBA API.
     
-    with open(SCHEDULE_CACHE) as f:
-        data = json.load(f)
+    Args:
+        day: Fecha en formato date
+        
+    Returns:
+        Lista de game IDs
+    """
+    day_str = day.strftime("%m/%d/%Y")  # Formato: MM/DD/YYYY
     
-    # Parsear juegos del JSON
-    games = data.get("leagueSchedule", {}).get("gameDates", [])
-    rows = []
-    for game_date in games:
-        for game in game_date.get("games", []):
-            rows.append({
-                "GAME_ID": game["gameId"],
-                "GAME_DATE": game_date["gameDate"],
-            })
-    
-    return pd.DataFrame(rows)
-
-
-def get_game_ids_for_date(day: date, sched_df: pd.DataFrame) -> list:
-    """Obtiene game IDs para una fecha específica."""
-    day_str = day.isoformat()
-    return sched_df[sched_df["GAME_DATE"] == day_str]["GAME_ID"].tolist()
+    try:
+        scoreboard = scoreboardv2.ScoreboardV2(game_date=day_str)
+        games_df = scoreboard.game_header.get_data_frame()
+        
+        if games_df.empty:
+            print(f"⚠️ No hay juegos registrados para {day}")
+            return []
+        
+        game_ids = games_df["GAME_ID"].astype(str).tolist()
+        print(f"✅ Encontrados {len(game_ids)} juegos para {day}")
+        return game_ids
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo juegos para {day}: {e}")
+        return []

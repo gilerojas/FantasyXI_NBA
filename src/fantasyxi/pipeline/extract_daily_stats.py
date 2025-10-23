@@ -9,9 +9,8 @@ from zoneinfo import ZoneInfo
 import json
 import pandas as pd
 
-# ✅ Imports corregidos (fantasyxi, no fantasyx_nba)
+# ✅ Imports corregidos
 from fantasyxi.stats.boxscore import daily_stats_by_date
-from fantasyxi.utils.schedule import build_schedule_df_from_cache
 
 TZ_RD = ZoneInfo("America/Santo_Domingo")
 FREEZE_PATH = Path("data/processed/freeze_time.json")
@@ -33,17 +32,17 @@ def main():
     freeze_data = json.loads(FREEZE_PATH.read_text())
     freeze_date = date.fromisoformat(freeze_data["date"])
     
+    print(f"📅 Extrayendo stats para: {freeze_date}")
+    
     # Cargar roster congelado
     roster = load_frozen_roster(freeze_data["date"])
     player_ids = roster["nba_player_id"].dropna()
     
-    # Cargar schedule
-    sched_df = build_schedule_df_from_cache()
+    print(f"👥 Filtrando {len(player_ids)} jugadores rostered")
     
-    # Extraer stats del día del freeze
+    # Extraer stats del día del freeze (SIN schedule cache)
     stats = daily_stats_by_date(
         day=freeze_date,
-        sched_df=sched_df,
         filter_ids=player_ids
     )
     
@@ -58,6 +57,7 @@ def main():
     stats.to_csv(output, index=False)
     
     print(f"📊 Stats extraídas: {len(stats)} registros → {output}")
+    print(f"✅ Proceso completado exitosamente")
 
 
 if __name__ == "__main__":

@@ -151,13 +151,29 @@ def boxscore_players_df(game_id: str) -> pd.DataFrame:
     return box[[c for c in keep_final if c in box.columns]]
 
 
-def daily_stats_by_date(day: date, sched_df: pd.DataFrame, filter_ids: pd.Series | None = None) -> pd.DataFrame:
-    """Extrae stats de todos los juegos de un día específico."""
+def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None) -> pd.DataFrame:
+    """
+    Extrae stats de todos los juegos de un día específico.
+    
+    Args:
+        day: Fecha de los juegos
+        filter_ids: IDs de jugadores a filtrar (opcional)
+        
+    Returns:
+        DataFrame con stats de los jugadores
+    """
     from fantasyxi.utils.schedule import get_game_ids_for_date
     
-    game_ids = get_game_ids_for_date(day, sched_df)
+    # Obtener juegos del día directamente de la API
+    game_ids = get_game_ids_for_date(day)
+    
+    if not game_ids:
+        print(f"⚠️ No hay juegos para {day}")
+        return pd.DataFrame()
+    
     frames = []
     for gid in game_ids:
+        print(f"📥 Extrayendo stats del juego {gid}...")
         df_g = boxscore_players_df(gid)
         if df_g is not None and not df_g.empty:
             frames.append(df_g)
