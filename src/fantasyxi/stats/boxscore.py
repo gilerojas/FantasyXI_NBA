@@ -234,3 +234,60 @@ def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None, timeout:
         df = df.sort_values(sort_cols, ascending=[False]*len(sort_cols))
 
     return df.reset_index(drop=True)
+
+def daily_stats_from_game_ids(
+    game_ids: list[str], 
+    filter_ids: pd.Series | None = None, 
+    timeout: int = 60
+) -> pd.DataFrame:
+    """
+    Extrae stats usando game IDs pre-cacheados (sin llamar a ScoreboardV2).
+    
+    Args:
+        game_ids: Lista de game IDs
+        filter_ids: IDs de jugadores a filtrar (opcional)
+        timeout: Timeout en segundos (default: 60)
+        
+    Returns:
+        DataFrame con stats de los jugadores
+    """
+    if not game_ids:
+        print("⚠️ No hay game IDs para procesar")
+        return pd.DataFrame()
+    
+    print(f"📋 Procesando {len(game_ids)} juegos pre-cacheados")
+    
+    frames = []
+    for i, gid in enumerate(game_ids):
+        print(f"📥 Extrayendo stats del juego {i+1}/{len(game_ids)}: {gid}...")
+        df_g = boxscore_players_df(gid, timeout=timeout, max_retries=3)
+        if df_g is not None and not df_g.empty:
+            frames.append(df_g)
+        
+        # Delay entre juegos
+        if i < len(game_ids) - 1:
+            sleep(2)
+
+    if not frames:
+        return pd.DataFrame()
+
+    df = pd.concat(frames, ignore_index=True)
+
+    if "nba_player_id" in df.columns:
+        df["nba_player_id"] = pd.to_numeric(df["nba_player_id"], errors="coerce").astype("Int64")
+
+    if filter_ids is not None:
+        ids = pd.to_numeric(pd.Series(filter_ids), errors="coerce").astype("Int64").dropna().unique()
+        df = df[df["nba_player_id"].isin(ids)]
+
+    keep = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
+            "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
+            "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
+    keep = [c for c in keep if c in df.columns]
+    df = df[keep].copy()
+
+    sort_cols = [c for c in ["PTS", "REB", "AST"] if c in df.columns]
+    if sort_cols:
+        df = df.sort_values(sort_cols, ascending=[False]*len(sort_cols))
+
+    return df.reset_index(drop=True)

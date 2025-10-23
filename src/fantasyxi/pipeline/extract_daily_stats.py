@@ -10,7 +10,7 @@ import json
 import pandas as pd
 
 # ✅ Imports corregidos
-from fantasyxi.stats.boxscore import daily_stats_by_date
+from fantasyxi.stats.boxscore import daily_stats_from_game_ids
 
 TZ_RD = ZoneInfo("America/Santo_Domingo")
 FREEZE_PATH = Path("data/processed/freeze_time.json")
@@ -28,11 +28,18 @@ def load_frozen_roster(freeze_date: str) -> pd.DataFrame:
 
 
 def main():
-    # Leer fecha del freeze
+    # Leer freeze data (incluye game_ids pre-cacheados)
     freeze_data = json.loads(FREEZE_PATH.read_text())
     freeze_date = date.fromisoformat(freeze_data["date"])
+    game_ids = freeze_data.get("game_ids", [])
     
     print(f"📅 Extrayendo stats para: {freeze_date}")
+    
+    if not game_ids:
+        print("⚠️ No hay game IDs cacheados. El día no tuvo juegos.")
+        return
+    
+    print(f"🎮 Game IDs cacheados: {len(game_ids)} juegos")
     
     # Cargar roster congelado
     roster = load_frozen_roster(freeze_data["date"])
@@ -40,9 +47,9 @@ def main():
     
     print(f"👥 Filtrando {len(player_ids)} jugadores rostered")
     
-    # Extraer stats del día del freeze (con timeout de 60s)
-    stats = daily_stats_by_date(
-        day=freeze_date,
+    # Extraer stats usando game IDs pre-cacheados (SIN llamar a ScoreboardV2)
+    stats = daily_stats_from_game_ids(
+        game_ids=game_ids,
         filter_ids=player_ids,
         timeout=60
     )
