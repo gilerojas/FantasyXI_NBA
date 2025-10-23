@@ -53,7 +53,7 @@ def boxscore_players_df(game_id: str) -> pd.DataFrame:
     """
     # Intentar LIVE API
     try:
-        bx = live_boxscore.BoxScore(game_id)
+        bx = live_boxscore.BoxScore(game_id, timeout=60)
         game = bx.game.get_dict()
         rows = []
         for side in ("homeTeam", "awayTeam"):
