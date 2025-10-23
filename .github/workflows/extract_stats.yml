@@ -39,6 +39,7 @@ jobs:
         run: |
           source .venv/bin/activate
           python src/fantasyxi/pipeline/extract_daily_stats.py
+        continue-on-error: false
       
       - name: Generate highlights (opcional)
         run: |
@@ -58,13 +59,34 @@ jobs:
         run: |
           FREEZE_DATE=$(jq -r '.date' data/processed/freeze_time.json)
           MONTH=${FREEZE_DATE:0:7}
-          echo "Subiendo stats para $FREEZE_DATE..."
-          rclone copy data/processed/daily_stats/$MONTH/ mallitalytics:FantasyXI/daily_stats/$MONTH/ --include "*$FREEZE_DATE*.csv" --quiet
+          STATS_PATH="data/processed/daily_stats/$MONTH"
+          
+          # Verificar que el directorio existe
+          if [ ! -d "$STATS_PATH" ]; then
+            echo "⚠️ No hay stats para subir (directorio no existe: $STATS_PATH)"
+            exit 0
+          fi
+          
+          # Verificar que hay archivos CSV
+          if [ -z "$(ls -A $STATS_PATH/*.csv 2>/dev/null)" ]; then
+            echo "⚠️ No hay archivos CSV para subir en $STATS_PATH"
+            exit 0
+          fi
+          
+          echo "📤 Subiendo stats para $FREEZE_DATE..."
+          rclone copy $STATS_PATH mallitalytics:FantasyXI/daily_stats/$MONTH/ --include "*$FREEZE_DATE*.csv" --quiet
+          echo "✅ Stats subidas exitosamente"
       
       - name: Commit stats
         run: |
-          git config --global user.name 'github-actions'
-          git config --global user.email 'actions@github.com'
-          git add data/processed/daily_stats/
-          git commit -m "📊 Stats extraídas para $(jq -r '.date' data/processed/freeze_time.json)" || echo "No changes to commit"
-          git push origin main
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          
+          # Solo hacer commit si hay cambios
+          if [ -n "$(git status --porcelain data/processed/daily_stats/)" ]; then
+            git add data/processed/daily_stats/
+            git commit -m "📊 Stats extraídas para $(jq -r '.date' data/processed/freeze_time.json)"
+            git push
+          else
+            echo "No hay cambios en stats para commitear"
+          fi
