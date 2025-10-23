@@ -5,6 +5,7 @@ Funciones para extraer boxscores de juegos NBA.
 import re
 import pandas as pd
 from datetime import date
+from time import sleep
 from json import JSONDecodeError
 from nba_api.live.nba.endpoints import boxscore as live_boxscore
 from nba_api.stats.endpoints import boxscoretraditionalv2 as stats_box
@@ -47,116 +48,135 @@ def safe_pct(n, d):
     return float(n) / float(d)
 
 
-def boxscore_players_df(game_id: str, timeout: int = 60) -> pd.DataFrame:
+def boxscore_players_df(game_id: str, timeout: int = 60, max_retries: int = 3) -> pd.DataFrame:
     """
     Extrae boxscore de un juego. Intenta LIVE primero, fallback a STATS.
     
     Args:
         game_id: ID del juego
         timeout: Timeout en segundos (default: 60)
+        max_retries: Número máximo de reintentos (default: 3)
     """
-    # Intentar LIVE API
-    try:
-        bx = live_boxscore.BoxScore(game_id, timeout=timeout)
-        game = bx.game.get_dict()
-        rows = []
-        for side in ("homeTeam", "awayTeam"):
-            team = game.get(side, {})
-            tri = team.get("teamTricode")
-            for p in team.get("players", []):
-                st = p.get("statistics") or {}
-                rows.append({
-                    "game_id": game.get("gameId"),
-                    "NBA_TEAM": tri,
-                    "nba_player_id": pd.to_numeric(p.get("personId"), errors="coerce"),
-                    "player_name": p.get("name"),
-                    "FGM": st.get("fieldGoalsMade"),
-                    "FGA": st.get("fieldGoalsAttempted"),
-                    "FG%": st.get("fieldGoalsPercentage"),
-                    "FTM": st.get("freeThrowsMade"),
-                    "FTA": st.get("freeThrowsAttempted"),
-                    "FT%": st.get("freeThrowsPercentage"),
-                    "3PM": st.get("threePointersMade"),
-                    "3PA": st.get("threePointersAttempted"),
-                    "3P%": st.get("threePointersPercentage"),
-                    "OREB": st.get("reboundsOffensive"),
-                    "DREB": st.get("reboundsDefensive"),
-                    "REB": st.get("reboundsTotal"),
-                    "AST": st.get("assists"),
-                    "STL": st.get("steals"),
-                    "BLK": st.get("blocks"),
-                    "PTS": st.get("points"),
-                    "PIP": st.get("pointsInThePaint"),
-                    "MIN_iso_calc": st.get("minutesCalculated"),
-                    "MIN_iso": st.get("minutes"),
-                })
-        df = pd.DataFrame(rows)
-        if df.empty:
-            raise ValueError("Live boxscore vacío")
-
-        df["MIN"] = df["MIN_iso_calc"].apply(iso_to_minutes).fillna(df["MIN_iso"].apply(iso_to_minutes))
-        df = df.drop(columns=[c for c in ("MIN_iso", "MIN_iso_calc") if c in df.columns])
-
-        num_cols = ["FGM", "FGA", "FTM", "FTA", "3PM", "3PA", "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "MIN"]
-        for c in num_cols:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-
-        df["FG%"] = df.apply(lambda r: r["FG%"] if pd.notna(r.get("FG%")) else safe_pct(r.get("FGM"), r.get("FGA")), axis=1)
-        df["FT%"] = df.apply(lambda r: r["FT%"] if pd.notna(r.get("FT%")) else safe_pct(r.get("FTM"), r.get("FTA")), axis=1)
-        df["3P%"] = df.apply(lambda r: r["3P%"] if pd.notna(r.get("3P%")) else safe_pct(r.get("3PM"), r.get("3PA")), axis=1)
-        df["PPM"] = df.apply(lambda r: (r["PTS"]/r["MIN"]) if pd.notna(r.get("PTS")) and pd.notna(r.get("MIN")) and r["MIN"]>0 else None, axis=1)
-
-        df["nba_player_id"] = df["nba_player_id"].astype("Int64")
-        keep = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
-                "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
-                "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
-        return df[[c for c in keep if c in df.columns]]
-
-    except (JSONDecodeError, ValueError):
-        pass
-
-    # Fallback: STATS API
-    box = stats_box.BoxScoreTraditionalV2(
-        game_id=game_id,
-        timeout=timeout
-    ).player_stats.get_data_frame()
     
-    if box.empty:
-        return pd.DataFrame()
+    for attempt in range(max_retries):
+        # Intentar LIVE API
+        try:
+            bx = live_boxscore.BoxScore(game_id, timeout=timeout)
+            game = bx.game.get_dict()
+            rows = []
+            for side in ("homeTeam", "awayTeam"):
+                team = game.get(side, {})
+                tri = team.get("teamTricode")
+                for p in team.get("players", []):
+                    st = p.get("statistics") or {}
+                    rows.append({
+                        "game_id": game.get("gameId"),
+                        "NBA_TEAM": tri,
+                        "nba_player_id": pd.to_numeric(p.get("personId"), errors="coerce"),
+                        "player_name": p.get("name"),
+                        "FGM": st.get("fieldGoalsMade"),
+                        "FGA": st.get("fieldGoalsAttempted"),
+                        "FG%": st.get("fieldGoalsPercentage"),
+                        "FTM": st.get("freeThrowsMade"),
+                        "FTA": st.get("freeThrowsAttempted"),
+                        "FT%": st.get("freeThrowsPercentage"),
+                        "3PM": st.get("threePointersMade"),
+                        "3PA": st.get("threePointersAttempted"),
+                        "3P%": st.get("threePointersPercentage"),
+                        "OREB": st.get("reboundsOffensive"),
+                        "DREB": st.get("reboundsDefensive"),
+                        "REB": st.get("reboundsTotal"),
+                        "AST": st.get("assists"),
+                        "STL": st.get("steals"),
+                        "BLK": st.get("blocks"),
+                        "PTS": st.get("points"),
+                        "PIP": st.get("pointsInThePaint"),
+                        "MIN_iso_calc": st.get("minutesCalculated"),
+                        "MIN_iso": st.get("minutes"),
+                    })
+            df = pd.DataFrame(rows)
+            if df.empty:
+                raise ValueError("Live boxscore vacío")
 
-    box = box.rename(columns={
-        "PLAYER_ID": "nba_player_id",
-        "PLAYER_NAME": "player_name",
-        "TEAM_ABBREVIATION": "NBA_TEAM",
-    })
+            df["MIN"] = df["MIN_iso_calc"].apply(iso_to_minutes).fillna(df["MIN_iso"].apply(iso_to_minutes))
+            df = df.drop(columns=[c for c in ("MIN_iso", "MIN_iso_calc") if c in df.columns])
 
-    keep = ["nba_player_id", "player_name", "NBA_TEAM",
-            "MIN", "FGM", "FGA", "FTM", "FTA", "FG3M", "FG3A",
-            "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS"]
-    box = box[[c for c in keep if c in box.columns]].copy()
+            num_cols = ["FGM", "FGA", "FTM", "FTA", "3PM", "3PA", "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "MIN"]
+            for c in num_cols:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    for c in ["FGM", "FGA", "FTM", "FTA", "FG3M", "FG3A", "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS"]:
-        if c in box.columns:
-            box[c] = pd.to_numeric(box[c], errors="coerce")
+            df["FG%"] = df.apply(lambda r: r["FG%"] if pd.notna(r.get("FG%")) else safe_pct(r.get("FGM"), r.get("FGA")), axis=1)
+            df["FT%"] = df.apply(lambda r: r["FT%"] if pd.notna(r.get("FT%")) else safe_pct(r.get("FTM"), r.get("FTA")), axis=1)
+            df["3P%"] = df.apply(lambda r: r["3P%"] if pd.notna(r.get("3P%")) else safe_pct(r.get("3PM"), r.get("3PA")), axis=1)
+            df["PPM"] = df.apply(lambda r: (r["PTS"]/r["MIN"]) if pd.notna(r.get("PTS")) and pd.notna(r.get("MIN")) and r["MIN"]>0 else None, axis=1)
 
-    if "MIN" in box.columns:
-        box["MIN"] = box["MIN"].apply(mins_mmss_to_float)
+            df["nba_player_id"] = df["nba_player_id"].astype("Int64")
+            keep = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
+                    "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
+                    "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
+            return df[[c for c in keep if c in df.columns]]
 
-    box["FG%"] = box.apply(lambda r: safe_pct(r.get("FGM"), r.get("FGA")), axis=1)
-    box["FT%"] = box.apply(lambda r: safe_pct(r.get("FTM"), r.get("FTA")), axis=1)
-    box["3PM"] = box.get("FG3M", pd.Series([None]*len(box)))
-    box["3PA"] = box.get("FG3A", pd.Series([None]*len(box)))
-    box["3P%"] = box.apply(lambda r: safe_pct(r.get("FG3M"), r.get("FG3A")), axis=1)
-    box["PIP"] = None
-    box["PPM"] = box.apply(lambda r: (r["PTS"]/r["MIN"]) if pd.notna(r.get("PTS")) and pd.notna(r.get("MIN")) and r["MIN"]>0 else None, axis=1)
-    box["nba_player_id"] = pd.to_numeric(box["nba_player_id"], errors="coerce").astype("Int64")
-    box["game_id"] = game_id
+        except (JSONDecodeError, ValueError):
+            pass  # Intentar STATS API como fallback
+        except Exception as e:
+            print(f"❌ Error en LIVE API (intento {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                sleep(3)  # Esperar antes de reintentar
 
-    keep_final = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
-                  "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
-                  "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
-    return box[[c for c in keep_final if c in box.columns]]
+        # Fallback: STATS API
+        try:
+            box = stats_box.BoxScoreTraditionalV2(
+                game_id=game_id,
+                timeout=timeout
+            ).player_stats.get_data_frame()
+            
+            if box.empty:
+                if attempt < max_retries - 1:
+                    sleep(3)
+                    continue
+                return pd.DataFrame()
+
+            box = box.rename(columns={
+                "PLAYER_ID": "nba_player_id",
+                "PLAYER_NAME": "player_name",
+                "TEAM_ABBREVIATION": "NBA_TEAM",
+            })
+
+            keep = ["nba_player_id", "player_name", "NBA_TEAM",
+                    "MIN", "FGM", "FGA", "FTM", "FTA", "FG3M", "FG3A",
+                    "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS"]
+            box = box[[c for c in keep if c in box.columns]].copy()
+
+            for c in ["FGM", "FGA", "FTM", "FTA", "FG3M", "FG3A", "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS"]:
+                if c in box.columns:
+                    box[c] = pd.to_numeric(box[c], errors="coerce")
+
+            if "MIN" in box.columns:
+                box["MIN"] = box["MIN"].apply(mins_mmss_to_float)
+
+            box["FG%"] = box.apply(lambda r: safe_pct(r.get("FGM"), r.get("FGA")), axis=1)
+            box["FT%"] = box.apply(lambda r: safe_pct(r.get("FTM"), r.get("FTA")), axis=1)
+            box["3PM"] = box.get("FG3M", pd.Series([None]*len(box)))
+            box["3PA"] = box.get("FG3A", pd.Series([None]*len(box)))
+            box["3P%"] = box.apply(lambda r: safe_pct(r.get("FG3M"), r.get("FG3A")), axis=1)
+            box["PIP"] = None
+            box["PPM"] = box.apply(lambda r: (r["PTS"]/r["MIN"]) if pd.notna(r.get("PTS")) and pd.notna(r.get("MIN")) and r["MIN"]>0 else None, axis=1)
+            box["nba_player_id"] = pd.to_numeric(box["nba_player_id"], errors="coerce").astype("Int64")
+            box["game_id"] = game_id
+
+            keep_final = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
+                          "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
+                          "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
+            return box[[c for c in keep_final if c in box.columns]]
+            
+        except Exception as e:
+            print(f"❌ Error en STATS API (intento {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                sleep(3)
+    
+    print(f"❌ Falló después de {max_retries} intentos para juego {game_id}")
+    return pd.DataFrame()
 
 
 def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None, timeout: int = 60) -> pd.DataFrame:
@@ -174,18 +194,22 @@ def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None, timeout:
     from fantasyxi.utils.schedule import get_game_ids_for_date
     
     # Obtener juegos del día directamente de la API
-    game_ids = get_game_ids_for_date(day, timeout=timeout)
+    game_ids = get_game_ids_for_date(day, timeout=timeout, max_retries=3)
     
     if not game_ids:
         print(f"⚠️ No hay juegos para {day}")
         return pd.DataFrame()
     
     frames = []
-    for gid in game_ids:
-        print(f"📥 Extrayendo stats del juego {gid}...")
-        df_g = boxscore_players_df(gid, timeout=timeout)
+    for i, gid in enumerate(game_ids):
+        print(f"📥 Extrayendo stats del juego {i+1}/{len(game_ids)}: {gid}...")
+        df_g = boxscore_players_df(gid, timeout=timeout, max_retries=3)
         if df_g is not None and not df_g.empty:
             frames.append(df_g)
+        
+        # Delay entre juegos para evitar rate limiting
+        if i < len(game_ids) - 1:
+            sleep(2)
 
     if not frames:
         return pd.DataFrame()
