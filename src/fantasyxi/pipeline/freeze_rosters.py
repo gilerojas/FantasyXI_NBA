@@ -52,7 +52,7 @@ def main():
     # Cargar liga ESPN
     league = League(
         league_id=int(os.getenv("ESPN_LEAGUE_ID")),
-        year=2025,
+        year=2026,
         espn_s2=os.getenv("ESPN_S2"),
         swid=os.getenv("ESPN_SWID")
     )
