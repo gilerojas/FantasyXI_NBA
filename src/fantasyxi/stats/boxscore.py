@@ -4,7 +4,7 @@ Funciones para extraer boxscores de juegos NBA.
 
 import re
 import pandas as pd
-from datetime import date  # ✅ AGREGADO
+from datetime import date
 from json import JSONDecodeError
 from nba_api.live.nba.endpoints import boxscore as live_boxscore
 from nba_api.stats.endpoints import boxscoretraditionalv2 as stats_box
@@ -47,13 +47,17 @@ def safe_pct(n, d):
     return float(n) / float(d)
 
 
-def boxscore_players_df(game_id: str) -> pd.DataFrame:
+def boxscore_players_df(game_id: str, timeout: int = 60) -> pd.DataFrame:
     """
     Extrae boxscore de un juego. Intenta LIVE primero, fallback a STATS.
+    
+    Args:
+        game_id: ID del juego
+        timeout: Timeout en segundos (default: 60)
     """
     # Intentar LIVE API
     try:
-        bx = live_boxscore.BoxScore(game_id, timeout=60)
+        bx = live_boxscore.BoxScore(game_id, timeout=timeout)
         game = bx.game.get_dict()
         rows = []
         for side in ("homeTeam", "awayTeam"):
@@ -113,7 +117,11 @@ def boxscore_players_df(game_id: str) -> pd.DataFrame:
         pass
 
     # Fallback: STATS API
-    box = stats_box.BoxScoreTraditionalV2(game_id=game_id).player_stats.get_data_frame()
+    box = stats_box.BoxScoreTraditionalV2(
+        game_id=game_id,
+        timeout=timeout
+    ).player_stats.get_data_frame()
+    
     if box.empty:
         return pd.DataFrame()
 
@@ -151,13 +159,14 @@ def boxscore_players_df(game_id: str) -> pd.DataFrame:
     return box[[c for c in keep_final if c in box.columns]]
 
 
-def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None) -> pd.DataFrame:
+def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None, timeout: int = 60) -> pd.DataFrame:
     """
     Extrae stats de todos los juegos de un día específico.
     
     Args:
         day: Fecha de los juegos
         filter_ids: IDs de jugadores a filtrar (opcional)
+        timeout: Timeout en segundos (default: 60)
         
     Returns:
         DataFrame con stats de los jugadores
@@ -165,7 +174,7 @@ def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None) -> pd.Da
     from fantasyxi.utils.schedule import get_game_ids_for_date
     
     # Obtener juegos del día directamente de la API
-    game_ids = get_game_ids_for_date(day)
+    game_ids = get_game_ids_for_date(day, timeout=timeout)
     
     if not game_ids:
         print(f"⚠️ No hay juegos para {day}")
@@ -174,7 +183,7 @@ def daily_stats_by_date(day: date, filter_ids: pd.Series | None = None) -> pd.Da
     frames = []
     for gid in game_ids:
         print(f"📥 Extrayendo stats del juego {gid}...")
-        df_g = boxscore_players_df(gid)
+        df_g = boxscore_players_df(gid, timeout=timeout)
         if df_g is not None and not df_g.empty:
             frames.append(df_g)
 

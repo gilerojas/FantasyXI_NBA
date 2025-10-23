@@ -6,12 +6,13 @@ from datetime import date
 from nba_api.stats.endpoints import scoreboardv2
 
 
-def get_game_ids_for_date(day: date) -> list:
+def get_game_ids_for_date(day: date, timeout: int = 60) -> list:
     """
     Obtiene los game IDs para una fecha específica usando NBA API.
     
     Args:
         day: Fecha en formato date
+        timeout: Timeout en segundos (default: 60)
         
     Returns:
         Lista de game IDs
@@ -19,7 +20,10 @@ def get_game_ids_for_date(day: date) -> list:
     day_str = day.strftime("%m/%d/%Y")  # Formato: MM/DD/YYYY
     
     try:
-        scoreboard = scoreboardv2.ScoreboardV2(game_date=day_str)
+        scoreboard = scoreboardv2.ScoreboardV2(
+            game_date=day_str,
+            timeout=timeout
+        )
         games_df = scoreboard.game_header.get_data_frame()
         
         if games_df.empty:

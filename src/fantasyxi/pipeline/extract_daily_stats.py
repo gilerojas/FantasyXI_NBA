@@ -40,10 +40,11 @@ def main():
     
     print(f"👥 Filtrando {len(player_ids)} jugadores rostered")
     
-    # Extraer stats del día del freeze (SIN schedule cache)
+    # Extraer stats del día del freeze (con timeout de 60s)
     stats = daily_stats_by_date(
         day=freeze_date,
-        filter_ids=player_ids
+        filter_ids=player_ids,
+        timeout=60
     )
     
     if stats.empty:
