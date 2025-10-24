@@ -2,7 +2,7 @@ name: Schedule Freeze Time
 
 on:
   schedule:
-    - cron: "0 13 * * *"  # 9:00 AM RD (UTC-4)
+    - cron: "0 16 * * *"  # 12:00 PM RD (UTC-4) ✅ Cambio aquí
   workflow_dispatch:
 
 jobs:
