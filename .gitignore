@@ -45,20 +45,21 @@ data/weekly_outputs/
 # ==============================
 # NOTEBOOKS / OUTPUTS
 # ==============================
-/Users/gilrojasb/Desktop/FantasyXI_NBA/notebooks
+# Ignore all notebooks and subfolders
 notebooks/
-notebooks/.ipynb_checkpoints/
-notebooks/data/
-outputs/*.png
-outputs/*.jpg
-outputs/*.pdf
-outputs/draft_results/
-outputs/highlight_tables/
-outputs/weekly_predictions/
-outputs/weekly_table_images/
-outputs/weekly_barplots/
-outputs/weekly_performers/
+notebooks/**
 
+# Optional: ignore Jupyter autosave checkpoints
+notebooks/.ipynb_checkpoints/
+
+# Ignore any data or subfolders inside notebooks
+notebooks/data/
+
+# Ignore visual outputs
+outputs/
+outputs/**/*.png
+outputs/**/*.jpg
+outputs/**/*.pdf
 # ==============================
 # SYSTEM
 # ==============================
