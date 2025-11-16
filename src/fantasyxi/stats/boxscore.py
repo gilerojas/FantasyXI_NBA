@@ -13,6 +13,37 @@ from nba_api.stats.endpoints import boxscoretraditionalv2 as stats_box
 
 _iso_pat = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?")
 
+def get_game_date_from_id(game_id: str, timeout: int = 60) -> str:
+    """
+    Extrae la fecha de un juego usando el game_id.
+    
+    Args:
+        game_id: ID del juego
+        timeout: Timeout en segundos
+    
+    Returns:
+        Fecha en formato 'YYYY-MM-DD' o None si falla
+    """
+    try:
+        from nba_api.stats.endpoints import boxscoresummaryv2
+        
+        summary = boxscoresummaryv2.BoxScoreSummaryV2(
+            game_id=game_id,
+            timeout=timeout
+        )
+        
+        game_info = summary.game_summary.get_data_frame()
+        
+        if not game_info.empty and 'GAME_DATE_EST' in game_info.columns:
+            game_date_str = game_info['GAME_DATE_EST'].iloc[0]
+            # Formato: '2024-11-15T00:00:00'
+            return game_date_str.split('T')[0]  # Retorna '2024-11-15'
+        
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Error obteniendo fecha del juego {game_id}: {e}")
+        return None
 
 def iso_to_minutes(iso_str):
     """Convierte duraciones ISO como 'PT25M01.00S' a minutos float."""
@@ -241,7 +272,7 @@ def daily_stats_from_game_ids(
     timeout: int = 60
 ) -> pd.DataFrame:
     """
-    Extrae stats usando game IDs pre-cacheados (sin llamar a ScoreboardV2).
+    Extrae stats usando game IDs pre-cacheados.
     
     Args:
         game_ids: Lista de game IDs
@@ -249,7 +280,7 @@ def daily_stats_from_game_ids(
         timeout: Timeout en segundos (default: 60)
         
     Returns:
-        DataFrame con stats de los jugadores
+        DataFrame con stats de los jugadores (incluye GAME_DATE)
     """
     if not game_ids:
         print("⚠️ No hay game IDs para procesar")
@@ -257,11 +288,19 @@ def daily_stats_from_game_ids(
     
     print(f"📋 Procesando {len(game_ids)} juegos pre-cacheados")
     
+    # ===== NUEVO: Obtener fecha del primer juego =====
+    game_date = get_game_date_from_id(game_ids[0], timeout=timeout)
+    if not game_date:
+        print("⚠️ No se pudo determinar la fecha del juego")
+    
     frames = []
     for i, gid in enumerate(game_ids):
         print(f"📥 Extrayendo stats del juego {i+1}/{len(game_ids)}: {gid}...")
         df_g = boxscore_players_df(gid, timeout=timeout, max_retries=3)
         if df_g is not None and not df_g.empty:
+            # ===== NUEVO: Agregar GAME_DATE a cada registro =====
+            if game_date:
+                df_g['GAME_DATE'] = game_date
             frames.append(df_g)
         
         # Delay entre juegos
@@ -280,7 +319,8 @@ def daily_stats_from_game_ids(
         ids = pd.to_numeric(pd.Series(filter_ids), errors="coerce").astype("Int64").dropna().unique()
         df = df[df["nba_player_id"].isin(ids)]
 
-    keep = ["game_id", "NBA_TEAM", "nba_player_id", "player_name",
+    # ===== ACTUALIZADO: Incluir GAME_DATE en keep =====
+    keep = ["GAME_DATE", "game_id", "NBA_TEAM", "nba_player_id", "player_name",
             "FGM", "FGA", "FG%", "FTM", "FTA", "FT%", "3PM", "3PA", "3P%",
             "OREB", "DREB", "REB", "AST", "STL", "BLK", "PTS", "PIP", "PPM", "MIN"]
     keep = [c for c in keep if c in df.columns]
