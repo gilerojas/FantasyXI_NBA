@@ -1,6 +1,10 @@
 {
-  "date": "2026-04-16",
-  "freeze_time": null,
-  "game_ids": [],
-  "processed": true
+  "date": "2026-04-17",
+  "freeze_time": "2026-04-17T23:34:00+00:00",
+  "first_game_utc": "2026-04-17T23:30:00+00:00",
+  "game_ids": [
+    "0052500201",
+    "0052500211"
+  ],
+  "processed": false
 }
